@@ -221,7 +221,7 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	if (g_iSoundMode == 1)
 		EmitSoundToClientAny(activator, g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
 	else if (g_iSoundMode == 2)
-		EmitAmbientSoundAny(g_cPickupSoundPath, pos, _, SNDCHAN_STATIC, _, _, _, _);
+		EmitAmbientSoundAny(g_cPickupSoundPath, pos, _, _, _, _, _, _);
 	else
 		EmitSoundToAllAny(g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
 	
@@ -263,7 +263,7 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 		RemoveFromArray(randomNumbers, 0);
 		spawnItem(spawnId);
 	}
-	CPrintToChatAll("{darkred}[{green}%s{darkred}] %i %s {green}were spawned randomly on the map!", g_cChatTag, g_cItemName, spawns);
+	CPrintToChatAll("{darkred}[{green}%s{darkred}] %i %s(s) {green}were spawned randomly on the map!", g_cChatTag, spawns, g_cItemName);
 }
 
 public void loadItemSpawnPoints()

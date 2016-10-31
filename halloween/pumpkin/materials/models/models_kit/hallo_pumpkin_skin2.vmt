@@ -1,0 +1,5 @@
+"vertexlitGeneric"
+{
+	"$baseTexture" "models/models_kit/hallo_pumpkin_skin2"
+	"$surfaceprop" "plastic"
+}
