@@ -67,6 +67,12 @@ int g_iMinSpawnAmount;
 Handle g_hMaxSpawnAmount;
 int g_iMaxSpawnAmount;
 
+Handle g_hnSpawnAmount;
+int g_inSpawnAmount;
+
+Handle g_hpSpawnDelay;
+int g_ipSpawnDelay;
+
 Handle g_hSoundMode;
 int g_iSoundMode;
 
@@ -76,6 +82,12 @@ char g_cChatTag[64];
 Handle g_hItemName;
 char g_cItemName[64];
 
+Handle g_hUseMySQL;
+char g_cUseMySQL[64];
+
+int g_iRespawnDelays[MAX_Item];
+
+Database g_DB;
 
 public Plugin myinfo = 
 {
@@ -97,17 +109,20 @@ public void OnPluginStart()
 	AutoExecConfig_SetCreateFile(true);
 	
 	g_hItemPath = AutoExecConfig_CreateConVar("event_itemPath", "models/models_kit/hallo_Item_l.mdl", "Itempath of Item Spawn");
-	g_hAuraPath = AutoExecConfig_CreateConVar("event_auraPath", "Aura10", "Particle Name of Aura");
-	g_hPickupEffectPath = AutoExecConfig_CreateConVar("event_PickupEffectPath", "confetti_A_omni", "Particle Name of Pickup Effect");
-	g_hPickupSoundPath = AutoExecConfig_CreateConVar("event_PickupSoundPath", "path/to/sound", "Sound to play when item is picked up");
+	g_hAuraPath = AutoExecConfig_CreateConVar("event_auraPath", "", "Particle Name of Aura (optional)");
+	g_hPickupEffectPath = AutoExecConfig_CreateConVar("event_PickupEffectPath", "", "Particle Name of Pickup Effect (optional)");
+	g_hPickupSoundPath = AutoExecConfig_CreateConVar("event_PickupSoundPath", "", "Sound to play when item is picked up");
 	g_hPickupCredits = AutoExecConfig_CreateConVar("event_pickupCredits", "10", "Credits awarded for Pickup");
-	g_hSpawnMode = AutoExecConfig_CreateConVar("event_spawnMode", "1", "1 -> x Per Player | 2 -> Up to 10*x | 3 -> Random from min to Max");
+	g_hSpawnMode = AutoExecConfig_CreateConVar("event_spawnMode", "1", ">>SpawnMode<<-> 1 -> x Per Player | 2 -> Up to 10*x | 3 -> Random from min to Max | 4 -> Random with n active and p(s) delay");
 	g_hSpawnAmount = AutoExecConfig_CreateConVar("event_spawnAmount", "1", "Amount x for spawnMode");
-	g_hMinSpawnAmount = AutoExecConfig_CreateConVar("event_minSpawnAmount", "15", "Min Amount for SpawnMode 3");
-	g_hMaxSpawnAmount = AutoExecConfig_CreateConVar("event_maxSpawnAmount", "25", "Max Amount for SpawnMode 3");
+	g_hMinSpawnAmount = AutoExecConfig_CreateConVar("event_minSpawnAmount", "15", "Min Amount for >>SpawnMode 3<<");
+	g_hMaxSpawnAmount = AutoExecConfig_CreateConVar("event_maxSpawnAmount", "25", "Max Amount for >>SpawnMode 3<<");
 	g_hSoundMode = AutoExecConfig_CreateConVar("event_soundMode", "1", "1 -> To Client on Pickup | 2 -> Ambient sound from Position | 3 -> Sound to all");
+	g_hnSpawnAmount = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
+	g_hpSpawnDelay = AutoExecConfig_CreateConVar("event_pSpawnDelay", "1200", "Spawn delay for >>SpawnMode 4<< in seconds");
 	g_hChatTag = AutoExecConfig_CreateConVar("event_chatTag", "GGC", "Chattag to append in front of all prints");
 	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Pumpkin", "Name of the Item for PrintToChat");
+	g_hUseMySQL = AutoExecConfig_CreateConVar("event_useMysql", "eventItems", "MySQL Config Name - leave blank for none");
 	
 	AutoExecConfig_CleanFile();
 	AutoExecConfig_ExecuteFile();
@@ -131,12 +146,44 @@ public void OnConfigsExecuted() {
 	g_iMaxSpawnAmount = GetConVarInt(g_hMaxSpawnAmount);
 	GetConVarString(g_hChatTag, g_cChatTag, sizeof(g_cChatTag));
 	GetConVarString(g_hItemName, g_cItemName, sizeof(g_cItemName));
+	g_inSpawnAmount = GetConVarInt(g_hnSpawnAmount);
+	g_ipSpawnDelay = GetConVarInt(g_hpSpawnDelay);
 	
-	PrecacheSoundAny(g_cPickupSoundPath, true);
+	GetConVarString(g_hUseMySQL, g_cUseMySQL, sizeof(g_cUseMySQL));
+	if(!StrEqual(g_cUseMySQL, "")){
+		char error[256];
+		g_DB = SQL_Connect(g_cUseMySQL, true, error, sizeof(error));
+	}
+		
+	if (!StrEqual(g_cPickupSoundPath, ""))
+		PrecacheSoundAny(g_cPickupSoundPath, true);
+		
+	if(g_iSpawnMode == 4)
+		for (int i = 0; i < g_inSpawnAmount; i++)
+			g_iRespawnDelays[i] = 0;
 }
 
 public void OnMapStart() {
 	forceReload();
+	CreateTimer(1.0, refreshTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public Action refreshTimer(Handle Timer){
+	if(g_iSpawnMode == 4){
+		for (int i = 0; i < g_inSpawnAmount; i++){
+			if(g_iRespawnDelays[i] > 1)
+				g_iRespawnDelays[i]--;
+			else if(g_iRespawnDelays[i] == 1){
+				g_iRespawnDelays[i]--;
+				if(GetArraySize(randomNumbers) > 0){
+					int spawnId = GetArrayCell(randomNumbers, 0);
+					RemoveFromArray(randomNumbers, 0);
+					spawnItem(spawnId);
+				}
+			}
+				
+		}
+	}
 }
 
 public void forceReload() {
@@ -211,34 +258,54 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 		return;
 	AcceptEntityInput(caller, "kill");
 	g_eItemSpawnPoints[ItemId][gIsActive] = false;
+	
 	AcceptEntityInput(EntRefToEntIndex(g_eItemSpawnPoints[ItemId][gItemRef]), "kill");
 	g_iActiveItem--;
 	Store_SetClientCredits(activator, Store_GetClientCredits(activator) + g_iPickupCredits);
-	
+	if(g_iSpawnMode == 4){
+		for (int i = 0; i < g_inSpawnAmount; i++) {
+			if(g_iRespawnDelays[i] > 1)
+				g_iRespawnDelays[i] = g_ipSpawnDelay;
+		}
+	}
 	float pos[3];
 	GetClientAbsOrigin(activator, pos);
 	
-	if (g_iSoundMode == 1)
-		EmitSoundToClientAny(activator, g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
-	else if (g_iSoundMode == 2)
-		EmitAmbientSoundAny(g_cPickupSoundPath, pos, _, _, _, _, _, _);
-	else
-		EmitSoundToAllAny(g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
+	if (!StrEqual(g_cPickupSoundPath, ""))
+		if (g_iSoundMode == 1)
+			EmitSoundToClientAny(activator, g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
+		else if (g_iSoundMode == 2)
+			EmitAmbientSoundAny(g_cPickupSoundPath, pos, _, _, _, _, _, _);
+		else
+			EmitSoundToAllAny(g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
 	
 	CPrintToChat(activator, "{darkred}[{green}%s{darkred}] {green}You picked up a %s with {darkred}%i Credits{green}!", g_cChatTag, g_cItemName, g_iPickupCredits);
 	triggerEffect(pos, g_cPickupEffectPath, 2.5);
 }
 
 public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
-	for (int i = 0; i < MAX_Item; i++) {
-		g_eItemSpawnPoints[i][gIsActive] = false;
+	if(g_iSpawnMode != 4){
+		for (int i = 0; i < MAX_Item; i++) {
+			g_eItemSpawnPoints[i][gIsActive] = false;
+		}
+	}else{
+		for (int n = 0; n < g_iLoadedItem; n++){
+			if(g_eItemSpawnPoints[n][gIsActive]){
+				spawnItem(n);
+			}
+		} 
 	}
 	
+	if (g_iLoadedItem == 0)
+		return;
 	randomNumbers = CreateArray(g_iLoadedItem, g_iLoadedItem);
 	ClearArray(randomNumbers);
 	for (int i = 0; i < g_iLoadedItem; i++) {
 		PushArrayCell(randomNumbers, i);
 	}
+	
+	if(g_iSpawnMode > 3)
+		return;
 	
 	for (int i = 0; i < MAX_Item; i++) {
 		int index1 = GetRandomInt(0, (g_iLoadedItem - 1));
@@ -331,13 +398,13 @@ public void saveItemSpawnPoints()
 public void AddLootSpawn(int client, bool vision)
 {
 	float pos[3];
-	if(vision){
+	if (vision) {
 		float ang[3];
 		GetClientEyePosition(client, pos);
 		GetClientEyeAngles(client, ang);
 		TR_TraceRayFilter(pos, ang, MASK_PLAYERSOLID, RayType_Infinite, TraceRayDontHitSelf, client);
 		TR_GetEndPosition(pos);
-	}else
+	} else
 		GetClientAbsOrigin(client, pos);
 	
 	TE_SetupGlowSprite(pos, g_iBlueGlow, 10.0, 1.0, 235);
@@ -371,6 +438,7 @@ public Action addSpawnPointsMenu(int client, int args)
 	DrawPanelText(panel, "x-x-x-x-x-x-x-x-x-x");
 	DrawPanelItem(panel, ItemText);
 	DrawPanelItem(panel, ItemAim);
+	DrawPanelItem(panel, "Delete latest Spawnpoint");
 	DrawPanelText(panel, "-------------");
 	DrawPanelItem(panel, "Show Spawns");
 	DrawPanelItem(panel, "Close");
@@ -394,10 +462,18 @@ public int addSpawnPointsMenuHandler(Handle menu, MenuAction action, int client,
 			AddLootSpawn(client, true);
 			addSpawnPointsMenu(client, 0);
 		} else if (item == 3) {
+			deleteLatestSpawn(client);
+		} else if (item == 4) {
 			ShowSpawns();
 			addSpawnPointsMenu(client, 0);
 		}
 	}
+}
+
+public void deleteLatestSpawn(int client) {
+	g_iLoadedItem--;
+	PrintToChat(client, "Deleted latest Spawn (%i left).", g_iLoadedItem);
+	saveItemSpawnPoints();
 }
 
 public void ShowSpawns() {
@@ -423,6 +499,8 @@ public int getActiveItem() {
 
 stock void GiveEntityAura(any ent, char aura[255], float position[3])
 {
+	if (StrEqual(aura, ""))
+		return;
 	int AuraEntity = CreateEntityByName("info_particle_system");
 	DispatchKeyValue(AuraEntity, "start_active", "0");
 	DispatchKeyValue(AuraEntity, "effect_name", aura);
@@ -436,6 +514,8 @@ stock void GiveEntityAura(any ent, char aura[255], float position[3])
 }
 
 stock void triggerEffect(float pos[3], char effect[255], float duration) {
+	if (StrEqual(effect, ""))
+		return;
 	int spawnEffect = CreateEntityByName("info_particle_system");
 	DispatchKeyValue(spawnEffect, "start_active", "0");
 	DispatchKeyValue(spawnEffect, "effect_name", effect);
@@ -448,7 +528,9 @@ stock void triggerEffect(float pos[3], char effect[255], float duration) {
 
 public Action clearEffect(Handle Timer, any ent) {
 	int iEnt = EntRefToEntIndex(ent);
-	AcceptEntityInput(iEnt, "kill");
+	if (IsValidEdict(iEnt))
+		if (IsValidEntity(iEnt))
+		AcceptEntityInput(iEnt, "kill");
 }
 
 public Action Timer_Run(Handle Timer, any ent)
@@ -530,10 +612,10 @@ public int createTrigger(float pos[3], char sItemName[8])
 	SetEntProp(iEnt, Prop_Send, "m_fEffects", iEffects);
 	
 	HookSingleEntityOutput(iEnt, "OnStartTouch", EntOut_OnStartTouch);
-} 
+}
 
-public bool TraceRayDontHitSelf(int entity, int mask, any data){
-	if(entity == data)
+public bool TraceRayDontHitSelf(int entity, int mask, any data) {
+	if (entity == data)
 		return false;
 	return true;
-}
+} 
