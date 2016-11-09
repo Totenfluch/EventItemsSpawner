@@ -69,6 +69,10 @@ int g_iMaxSpawnAmount;
 
 Handle g_hnSpawnAmount;
 int g_inSpawnAmount;
+int g_iAntiExploidSpawnAmount;
+
+Handle g_hEnableAntiAbuse;
+bool g_bEnableAntiAbuse;
 
 Handle g_hpSpawnDelay;
 int g_ipSpawnDelay;
@@ -125,6 +129,7 @@ public void OnPluginStart()
 	g_hMaxSpawnAmount = AutoExecConfig_CreateConVar("event_maxSpawnAmount", "25", "Max Amount for >>SpawnMode 3<<");
 	g_hSoundMode = AutoExecConfig_CreateConVar("event_soundMode", "2", "1 -> To Client on Pickup | 2 -> Ambient sound from Position | 3 -> Sound to all");
 	g_hnSpawnAmount = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
+	g_hEnableAntiAbuse = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
 	g_hpSpawnDelay = AutoExecConfig_CreateConVar("event_pSpawnDelay", "300", "Spawn delay for >>SpawnMode 4<< in seconds");
 	g_hChatTag = AutoExecConfig_CreateConVar("event_chatTag", "GGC", "Chattag to append in front of all prints");
 	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Coin", "Name of the Item for PrintToChat");
@@ -141,7 +146,7 @@ public Action cmdForceReload(int client, int args) {
 	return Plugin_Handled;
 }
 
-public void OnClientPostAdminCheck(int client){
+public void OnClientPostAdminCheck(int client) {
 	char playerid[20];
 	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
 	char playername[MAX_NAME_LENGTH + 8];
@@ -171,40 +176,56 @@ public void OnConfigsExecuted() {
 	g_ipSpawnDelay = GetConVarInt(g_hpSpawnDelay);
 	g_fModelScale = GetConVarFloat(g_hModelScale);
 	g_fZAxisOffset = GetConVarFloat(g_hZAxisOffset);
+	g_bEnableAntiAbuse = GetConVarBool(g_hEnableAntiAbuse);
+	g_iAntiExploidSpawnAmount = g_inSpawnAmount;
 	
 	GetConVarString(g_hUseMySQL, g_cUseMySQL, sizeof(g_cUseMySQL));
-	if(!StrEqual(g_cUseMySQL, "")){
+	if (!StrEqual(g_cUseMySQL, "")) {
 		char error[256];
 		g_DB = SQL_Connect(g_cUseMySQL, true, error, sizeof(error));
 		char createTableQuery[2048];
 		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`),  UNIQUE KEY `playerid` (`playerid`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
 		SQL_TQuery(g_DB, SQLErrorCheckCallback, createTableQuery);
 	}
-		
+	
 	if (!StrEqual(g_cPickupSoundPath, ""))
 		PrecacheSoundAny(g_cPickupSoundPath, true);
-		
-	if(g_iSpawnMode == 4)
+	
+	if (g_iSpawnMode == 4)
 		for (int i = 0; i < g_inSpawnAmount; i++)
-			g_iRespawnDelays[i] = 0;
-			
+	g_iRespawnDelays[i] = 0;
+	
 	char retrieveStatsCommandString[64];
 	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss", g_cItemName);
-	if(!CommandExists(retrieveStatsCommandString))
+	if (!CommandExists(retrieveStatsCommandString))
 		RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
 	
 	char topListCommand[64];
 	Format(topListCommand, sizeof(topListCommand), "sm_%stop", g_cItemName);
-	if(!CommandExists(topListCommand))
+	if (!CommandExists(topListCommand))
 		RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
+	
+	char amountCommand[64];
+	Format(amountCommand, sizeof(amountCommand), "sm_%samount", g_cItemName);
+	if (!CommandExists(amountCommand))
+		RegConsoleCmd(amountCommand, getItemAmount, "returns the amount of active Items");
 }
 
-public Action retrieveStatsCommand(int client, int args){
+public Action retrieveStatsCommand(int client, int args) {
 	char playerid[20];
 	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
 	char fetchStatsQuery[256];
 	Format(fetchStatsQuery, sizeof(fetchStatsQuery), "SELECT amount FROM eventItems_stats WHERE playerid = '%s';", playerid);
 	SQL_TQuery(g_DB, fetchStatsQueryCallback, fetchStatsQuery, client);
+	return Plugin_Handled;
+}
+
+public Action getItemAmount(int client, int args) {
+	int activeItems = 0;
+	for (int i = 0; i < g_iLoadedItem; i++)
+	if (g_eItemSpawnPoints[i][gIsActive])
+		activeItems++;
+	CPrintToChat(client, "{darkred}[{green}%s{darkred}] {green}There are {darkred}%i {green}active {darkred}%s(s){green}!", g_cChatTag, activeItems, g_cItemName);
 	return Plugin_Handled;
 }
 
@@ -218,11 +239,11 @@ public void fetchStatsQueryCallback(Handle owner, Handle hndl, const char[] erro
 }
 
 
-public void incrementCollectedAmount(int client){
+public void incrementCollectedAmount(int client) {
 	addToCollectedAmount(client, 1);
 }
 
-public void addToCollectedAmount(int client, int amount){
+public void addToCollectedAmount(int client, int amount) {
 	char playerid[20];
 	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
 	char UpdateProgressQuery[1024];
@@ -235,12 +256,12 @@ public void OnMapStart() {
 	CreateTimer(1.0, refreshTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action refreshTimer(Handle Timer){
-	if(g_iSpawnMode == 4){
-		for (int i = 0; i < g_inSpawnAmount; i++){
-			if(g_iRespawnDelays[i] > 1){
+public Action refreshTimer(Handle Timer) {
+	if (g_iSpawnMode == 4) {
+		for (int i = 0; i < g_iAntiExploidSpawnAmount; i++) {
+			if (g_iRespawnDelays[i] > 1) {
 				g_iRespawnDelays[i]--;
-			}else if(g_iRespawnDelays[i] == 1){
+			} else if (g_iRespawnDelays[i] == 1) {
 				g_iRespawnDelays[i]--;
 				spawnItemOnRandomSlot();
 			}
@@ -251,9 +272,9 @@ public Action refreshTimer(Handle Timer){
 public void forceReload() {
 	char Path[512];
 	BuildPath(Path_SM, Path, sizeof(Path), "configs/event_Item");
-	if(!DirExists(Path))
-		CreateDirectory(Path, 0777); 
-
+	if (!DirExists(Path))
+		CreateDirectory(Path, 0777);
+	
 	for (int i = 0; i < MAX_Item; i++) {
 		g_eItemSpawnPoints[g_iLoadedItem][gXPos] = -1.0;
 		g_eItemSpawnPoints[g_iLoadedItem][gYPos] = -1.0;
@@ -333,9 +354,9 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	Store_SetClientCredits(activator, Store_GetClientCredits(activator) + g_iPickupCredits);
 	incrementCollectedAmount(activator);
 	
-	if(g_iSpawnMode == 4){
-		for (int i = 0; i < g_inSpawnAmount; i++) {
-			if(g_iRespawnDelays[i] < 1){
+	if (g_iSpawnMode == 4) {
+		for (int i = 0; i < g_iAntiExploidSpawnAmount; i++) {
+			if (g_iRespawnDelays[i] < 1) {
 				g_iRespawnDelays[i] = g_ipSpawnDelay;
 				break;
 			}
@@ -344,13 +365,14 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	float pos[3];
 	GetClientAbsOrigin(activator, pos);
 	
-	if (!StrEqual(g_cPickupSoundPath, ""))
+	if (!StrEqual(g_cPickupSoundPath, "")) {
 		if (g_iSoundMode == 1)
 			EmitSoundToClientAny(activator, g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
 		else if (g_iSoundMode == 2)
 			EmitAmbientSoundAny(g_cPickupSoundPath, pos, _, _, _, _, _, _);
 		else
 			EmitSoundToAllAny(g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
+	}
 	
 	CPrintToChat(activator, "{darkred}[{green}%s{darkred}] {green}You picked up a %s with {darkred}%i Credits{green}!", g_cChatTag, g_cItemName, g_iPickupCredits);
 	triggerEffect(pos, g_cPickupEffectPath, 2.5);
@@ -371,34 +393,39 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 		SwapArrayItems(randomNumbers, index1, index2);
 	}
 	
-	if(g_iSpawnMode != 4){
+	if (g_iSpawnMode != 4) {
 		for (int i = 0; i < MAX_Item; i++) {
 			g_eItemSpawnPoints[i][gIsActive] = false;
 		}
-	}else{
+	} else {
+		if (g_bEnableAntiAbuse)
+			g_iAntiExploidSpawnAmount = GetRealClientCount();
+		else
+			g_iAntiExploidSpawnAmount = g_inSpawnAmount;
+		
 		for (int n = 0; n < g_iLoadedItem; n++)
-			if(g_eItemSpawnPoints[n][gIsActive])
-				spawnItem(n);
-			
+		if (g_eItemSpawnPoints[n][gIsActive])
+			spawnItem(n);
+		
 		int activeTimers = 0;
-		for (int i = 0; i < g_inSpawnAmount; i++)
-			if(g_iRespawnDelays[i] > 0)
-				activeTimers++;
+		for (int i = 0; i < g_iAntiExploidSpawnAmount; i++)
+		if (g_iRespawnDelays[i] > 0)
+			activeTimers++;
 		
 		int activeItems = 0;
 		for (int i = 0; i < g_iLoadedItem; i++)
-			if(g_eItemSpawnPoints[i][gIsActive])
-				activeItems++;
-			
-		if(activeTimers + activeItems < g_inSpawnAmount){
-			int toSpawn = g_inSpawnAmount - (activeTimers + activeItems);
+		if (g_eItemSpawnPoints[i][gIsActive])
+			activeItems++;
+		
+		if (activeTimers + activeItems < g_iAntiExploidSpawnAmount) {
+			int toSpawn = g_iAntiExploidSpawnAmount - (activeTimers + activeItems);
 			for (int i = 0; i < toSpawn; i++)
-				spawnItemOnRandomSlot();
+			spawnItemOnRandomSlot();
 		}
-				
+		
 	}
 	/*r*/
-	if(g_iSpawnMode != 1 && g_iSpawnMode != 2 && g_iSpawnMode != 3)
+	if (g_iSpawnMode != 1 && g_iSpawnMode != 2 && g_iSpawnMode != 3)
 		return;
 	
 	int spawns = 0;
@@ -419,8 +446,8 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 	CPrintToChatAll("{darkred}[{green}%s{darkred}] %i %s(s) {green}were spawned randomly on the map!", g_cChatTag, spawns, g_cItemName);
 }
 
-public int spawnItemOnRandomSlot(){
-	if(GetArraySize(randomNumbers) == 0)
+public int spawnItemOnRandomSlot() {
+	if (GetArraySize(randomNumbers) == 0)
 		return -1;
 	int spawnId = GetArrayCell(randomNumbers, 0);
 	RemoveFromArray(randomNumbers, 0);
@@ -713,16 +740,16 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data) {
 	if (entity == data)
 		return false;
 	return true;
-} 
+}
 
-public void SQLErrorCheckCallback(Handle owner, Handle hndl, const char[] error, any data){
-	if(!StrEqual(error, ""))
+public void SQLErrorCheckCallback(Handle owner, Handle hndl, const char[] error, any data) {
+	if (!StrEqual(error, ""))
 		LogError(error);
 }
 
 
-public Action getTopCollectors(int client, int args){
-	if (g_DB != INVALID_HANDLE){
+public Action getTopCollectors(int client, int args) {
+	if (g_DB != INVALID_HANDLE) {
 		char topCollectorsQuery[512];
 		Format(topCollectorsQuery, sizeof(topCollectorsQuery), "SELECT playername,amount FROM eventItems_stats ORDER BY amount DESC LIMIT 10;");
 		SQL_TQuery(g_DB, getTopCollectorsCallback, topCollectorsQuery, GetClientUserId(client));
@@ -734,8 +761,8 @@ public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] err
 {
 	int client = GetClientOfUserId(userid);
 	
-	if (hndl != INVALID_HANDLE){
-		if (isValidClient(client)){
+	if (hndl != INVALID_HANDLE) {
+		if (isValidClient(client)) {
 			Handle CreditsTopMenu = CreatePanel();
 			int index = 0;
 			
@@ -746,7 +773,7 @@ public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] err
 			
 			DrawPanelText(CreditsTopMenu, "^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^");
 			
-			while (SQL_FetchRow(hndl)){
+			while (SQL_FetchRow(hndl)) {
 				char name[MAX_NAME_LENGTH + 1];
 				int top_points;
 				
@@ -774,15 +801,15 @@ public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] err
 	}
 }
 
-public int globalPanelHandler(Handle menu, MenuAction action, int param1, int param2){
-	if (action == MenuAction_End){
+public int globalPanelHandler(Handle menu, MenuAction action, int param1, int param2) {
+	if (action == MenuAction_End) {
 		CloseHandle(menu);
 	}
 }
 
-public bool isValidClient(int client){
+public bool isValidClient(int client) {
 	if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
 		return false;
 	
 	return true;
-}
+} 
