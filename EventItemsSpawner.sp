@@ -190,11 +190,13 @@ public void OnConfigsExecuted() {
 			
 	char retrieveStatsCommandString[64];
 	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss", g_cItemName);
-	RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
+	if(!CommandExists(retrieveStatsCommandString))
+		RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
 	
 	char topListCommand[64];
 	Format(topListCommand, sizeof(topListCommand), "sm_%stop", g_cItemName);
-	RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
+	if(!CommandExists(topListCommand))
+		RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
 }
 
 public Action retrieveStatsCommand(int client, int args){
