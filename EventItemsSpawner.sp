@@ -90,6 +90,9 @@ int g_iRespawnDelays[MAX_Item];
 Handle g_hModelScale;
 float g_fModelScale;
 
+Handle g_hZAxisOffset;
+float g_fZAxisOffset;
+
 Database g_DB;
 
 public Plugin myinfo = 
@@ -111,22 +114,23 @@ public void OnPluginStart()
 	AutoExecConfig_SetFile("eventItems");
 	AutoExecConfig_SetCreateFile(true);
 	
-	g_hItemPath = AutoExecConfig_CreateConVar("event_itemPath", "models/models_kit/hallo_Item_l.mdl", "Itempath of Item Spawn");
+	g_hItemPath = AutoExecConfig_CreateConVar("event_itemPath", "models/coop/challenge_coin.mdl", "Itempath of Item Spawn");
 	g_hAuraPath = AutoExecConfig_CreateConVar("event_auraPath", "", "Particle Name of Aura (optional)");
 	g_hPickupEffectPath = AutoExecConfig_CreateConVar("event_PickupEffectPath", "", "Particle Name of Pickup Effect (optional)");
 	g_hPickupSoundPath = AutoExecConfig_CreateConVar("event_PickupSoundPath", "", "Sound to play when item is picked up");
 	g_hPickupCredits = AutoExecConfig_CreateConVar("event_pickupCredits", "10", "Credits awarded for Pickup");
-	g_hSpawnMode = AutoExecConfig_CreateConVar("event_spawnMode", "1", ">>SpawnMode<<-> 1 -> x Per Player | 2 -> Up to 10*x | 3 -> Random from min to Max | 4 -> Random with n active and p(s) delay");
-	g_hSpawnAmount = AutoExecConfig_CreateConVar("event_spawnAmount", "1", "Amount x for spawnMode");
+	g_hSpawnMode = AutoExecConfig_CreateConVar("event_spawnMode", "4", ">>SpawnMode<<-> 1 -> x Per Player | 2 -> Up to 10*x | 3 -> Random from min to Max | 4 -> Random with n active and p(s) delay");
+	g_hSpawnAmount = AutoExecConfig_CreateConVar("event_spawnAmount", "1", "Amount x for >>SpawnMode 1 AND 2<<");
 	g_hMinSpawnAmount = AutoExecConfig_CreateConVar("event_minSpawnAmount", "15", "Min Amount for >>SpawnMode 3<<");
 	g_hMaxSpawnAmount = AutoExecConfig_CreateConVar("event_maxSpawnAmount", "25", "Max Amount for >>SpawnMode 3<<");
-	g_hSoundMode = AutoExecConfig_CreateConVar("event_soundMode", "1", "1 -> To Client on Pickup | 2 -> Ambient sound from Position | 3 -> Sound to all");
+	g_hSoundMode = AutoExecConfig_CreateConVar("event_soundMode", "2", "1 -> To Client on Pickup | 2 -> Ambient sound from Position | 3 -> Sound to all");
 	g_hnSpawnAmount = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
-	g_hpSpawnDelay = AutoExecConfig_CreateConVar("event_pSpawnDelay", "1200", "Spawn delay for >>SpawnMode 4<< in seconds");
+	g_hpSpawnDelay = AutoExecConfig_CreateConVar("event_pSpawnDelay", "300", "Spawn delay for >>SpawnMode 4<< in seconds");
 	g_hChatTag = AutoExecConfig_CreateConVar("event_chatTag", "GGC", "Chattag to append in front of all prints");
-	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Pumpkin", "Name of the Item for PrintToChat");
+	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Coin", "Name of the Item for PrintToChat");
 	g_hUseMySQL = AutoExecConfig_CreateConVar("event_useMysql", "eventItems", "MySQL Config Name - leave blank for none");
-	g_hModelScale = AutoExecConfig_CreateConVar("event_modelScale", "1.0", "Scales the Model (Not working for all models!)");
+	g_hModelScale = AutoExecConfig_CreateConVar("event_modelScale", "0.65", "Scales the Model (Not working for all models!)");
+	g_hZAxisOffset = AutoExecConfig_CreateConVar("event_zAxisOffset", "30.0", "Moves the Item Up and Down (can be negative)");
 	
 	AutoExecConfig_CleanFile();
 	AutoExecConfig_ExecuteFile();
@@ -135,6 +139,19 @@ public void OnPluginStart()
 public Action cmdForceReload(int client, int args) {
 	forceReload();
 	return Plugin_Handled;
+}
+
+public void OnClientPostAdminCheck(int client){
+	char playerid[20];
+	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
+	char playername[MAX_NAME_LENGTH + 8];
+	GetClientName(client, playername, sizeof(playername));
+	char clean_playername[MAX_NAME_LENGTH * 2 + 16];
+	SQL_EscapeString(g_DB, playername, clean_playername, sizeof(clean_playername));
+	
+	char initQuery[512];
+	Format(initQuery, sizeof(initQuery), "INSERT IGNORE INTO `eventItems_stats` (`Id`, `playername`, `playerid`, `amount`) VALUES (NULL, '%s', '%s', '0');", clean_playername, playerid);
+	SQL_TQuery(g_DB, SQLErrorCheckCallback, initQuery);
 }
 
 public void OnConfigsExecuted() {
@@ -153,13 +170,14 @@ public void OnConfigsExecuted() {
 	g_inSpawnAmount = GetConVarInt(g_hnSpawnAmount);
 	g_ipSpawnDelay = GetConVarInt(g_hpSpawnDelay);
 	g_fModelScale = GetConVarFloat(g_hModelScale);
+	g_fZAxisOffset = GetConVarFloat(g_hZAxisOffset);
 	
 	GetConVarString(g_hUseMySQL, g_cUseMySQL, sizeof(g_cUseMySQL));
 	if(!StrEqual(g_cUseMySQL, "")){
 		char error[256];
 		g_DB = SQL_Connect(g_cUseMySQL, true, error, sizeof(error));
 		char createTableQuery[2048];
-		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
+		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`),  UNIQUE KEY `playerid` (`playerid`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
 		SQL_TQuery(g_DB, SQLErrorCheckCallback, createTableQuery);
 	}
 		
@@ -171,10 +189,13 @@ public void OnConfigsExecuted() {
 			g_iRespawnDelays[i] = 0;
 			
 	char retrieveStatsCommandString[64];
-	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss");
+	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss", g_cItemName);
 	RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
+	
+	char topListCommand[64];
+	Format(topListCommand, sizeof(topListCommand), "sm_%stop", g_cItemName);
+	RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
 }
-
 
 public Action retrieveStatsCommand(int client, int args){
 	char playerid[20];
@@ -202,8 +223,8 @@ public void incrementCollectedAmount(int client){
 public void addToCollectedAmount(int client, int amount){
 	char playerid[20];
 	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
-	char UpdateProgressQuery[512];
-	Format(UpdateProgressQuery, sizeof(UpdateProgressQuery), "UPDATE `eventItems_stats` SET `amount` = amount + %i WHERE `eventItems_stats`.`playerid` = '%s';", playerid, amount);
+	char UpdateProgressQuery[1024];
+	Format(UpdateProgressQuery, sizeof(UpdateProgressQuery), "UPDATE `eventItems_stats` SET `amount` = amount + %i WHERE `eventItems_stats`.`playerid` = '%s';", amount, playerid);
 	SQL_TQuery(g_DB, SQLErrorCheckCallback, UpdateProgressQuery);
 }
 
@@ -215,9 +236,9 @@ public void OnMapStart() {
 public Action refreshTimer(Handle Timer){
 	if(g_iSpawnMode == 4){
 		for (int i = 0; i < g_inSpawnAmount; i++){
-			if(g_iRespawnDelays[i] > 1)
+			if(g_iRespawnDelays[i] > 1){
 				g_iRespawnDelays[i]--;
-			else if(g_iRespawnDelays[i] == 1){
+			}else if(g_iRespawnDelays[i] == 1){
 				g_iRespawnDelays[i]--;
 				spawnItemOnRandomSlot();
 			}
@@ -226,6 +247,11 @@ public Action refreshTimer(Handle Timer){
 }
 
 public void forceReload() {
+	char Path[512];
+	BuildPath(Path_SM, Path, sizeof(Path), "configs/event_Item");
+	if(!DirExists(Path))
+		CreateDirectory(Path, 0777); 
+
 	for (int i = 0; i < MAX_Item; i++) {
 		g_eItemSpawnPoints[g_iLoadedItem][gXPos] = -1.0;
 		g_eItemSpawnPoints[g_iLoadedItem][gYPos] = -1.0;
@@ -256,6 +282,7 @@ public void spawnItem(int id) {
 	pos[0] = g_eItemSpawnPoints[id][gXPos];
 	pos[1] = g_eItemSpawnPoints[id][gYPos];
 	pos[2] = g_eItemSpawnPoints[id][gZPos];
+	pos[2] += g_fZAxisOffset;
 	TeleportEntity(eventEnt, pos, NULL_VECTOR, NULL_VECTOR);
 	Entity_SetGlobalName(eventEnt, "EventItem");
 	
@@ -306,8 +333,10 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	
 	if(g_iSpawnMode == 4){
 		for (int i = 0; i < g_inSpawnAmount; i++) {
-			if(g_iRespawnDelays[i] > 1)
+			if(g_iRespawnDelays[i] < 1){
 				g_iRespawnDelays[i] = g_ipSpawnDelay;
+				break;
+			}
 		}
 	}
 	float pos[3];
@@ -326,6 +355,20 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 }
 
 public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
+	if (g_iLoadedItem == 0)
+		return;
+	randomNumbers = CreateArray(g_iLoadedItem, g_iLoadedItem);
+	ClearArray(randomNumbers);
+	for (int i = 0; i < g_iLoadedItem; i++) {
+		PushArrayCell(randomNumbers, i);
+	}
+	
+	for (int i = 0; i < MAX_Item; i++) {
+		int index1 = GetRandomInt(0, (g_iLoadedItem - 1));
+		int index2 = GetRandomInt(0, (g_iLoadedItem - 1));
+		SwapArrayItems(randomNumbers, index1, index2);
+	}
+	
 	if(g_iSpawnMode != 4){
 		for (int i = 0; i < MAX_Item; i++) {
 			g_eItemSpawnPoints[i][gIsActive] = false;
@@ -352,23 +395,9 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 		}
 				
 	}
-	
-	if (g_iLoadedItem == 0)
+	/*r*/
+	if(g_iSpawnMode != 1 && g_iSpawnMode != 2 && g_iSpawnMode != 3)
 		return;
-	randomNumbers = CreateArray(g_iLoadedItem, g_iLoadedItem);
-	ClearArray(randomNumbers);
-	for (int i = 0; i < g_iLoadedItem; i++) {
-		PushArrayCell(randomNumbers, i);
-	}
-	
-	if(g_iSpawnMode > 3)
-		return;
-	
-	for (int i = 0; i < MAX_Item; i++) {
-		int index1 = GetRandomInt(0, (g_iLoadedItem - 1));
-		int index2 = GetRandomInt(0, (g_iLoadedItem - 1));
-		SwapArrayItems(randomNumbers, index1, index2);
-	}
 	
 	int spawns = 0;
 	if (g_iSpawnMode == 1)
@@ -687,4 +716,71 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data) {
 public void SQLErrorCheckCallback(Handle owner, Handle hndl, const char[] error, any data){
 	if(!StrEqual(error, ""))
 		LogError(error);
+}
+
+
+public Action getTopCollectors(int client, int args){
+	if (g_DB != INVALID_HANDLE){
+		char topCollectorsQuery[512];
+		Format(topCollectorsQuery, sizeof(topCollectorsQuery), "SELECT playername,amount FROM eventItems_stats ORDER BY amount DESC LIMIT 10;");
+		SQL_TQuery(g_DB, getTopCollectorsCallback, topCollectorsQuery, GetClientUserId(client));
+	}
+	return Plugin_Handled;
+}
+
+public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] error, any userid)
+{
+	int client = GetClientOfUserId(userid);
+	
+	if (hndl != INVALID_HANDLE){
+		if (isValidClient(client)){
+			Handle CreditsTopMenu = CreatePanel();
+			int index = 0;
+			
+			char top_text[128];
+			
+			Format(top_text, sizeof(top_text), "Top %s Collecters", g_cItemName);
+			SetPanelTitle(CreditsTopMenu, top_text);
+			
+			DrawPanelText(CreditsTopMenu, "^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^");
+			
+			while (SQL_FetchRow(hndl)){
+				char name[MAX_NAME_LENGTH + 1];
+				int top_points;
+				
+				SQL_FetchString(hndl, 0, name, sizeof(name));
+				top_points = SQL_FetchInt(hndl, 1);
+				
+				Format(top_text, sizeof(top_text), "%i. %s - %i Credits", ++index, name, top_points);
+				
+				DrawPanelText(CreditsTopMenu, top_text);
+			}
+			
+			if (!index) {
+				return;
+			} else {
+				
+				DrawPanelText(CreditsTopMenu, "^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^");
+				Format(top_text, sizeof(top_text), "Close");
+				DrawPanelItem(CreditsTopMenu, top_text);
+			}
+			
+			SendPanelToClient(CreditsTopMenu, client, globalPanelHandler, 60);
+		}
+	} else {
+		LogError("SQL Error: %s", error);
+	}
+}
+
+public int globalPanelHandler(Handle menu, MenuAction action, int param1, int param2){
+	if (action == MenuAction_End){
+		CloseHandle(menu);
+	}
+}
+
+public bool isValidClient(int client){
+	if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
+		return false;
+	
+	return true;
 }
