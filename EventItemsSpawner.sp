@@ -751,7 +751,7 @@ public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] err
 				SQL_FetchString(hndl, 0, name, sizeof(name));
 				top_points = SQL_FetchInt(hndl, 1);
 				
-				Format(top_text, sizeof(top_text), "%i. %s - %i Credits", ++index, name, top_points);
+				Format(top_text, sizeof(top_text), "%i. %s - %i %s(s)", ++index, name, top_points, g_cItemName);
 				
 				DrawPanelText(CreditsTopMenu, top_text);
 			}
