@@ -1,7 +1,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Totenfluch"
-#define PLUGIN_VERSION "1.00"
+#define PLUGIN_VERSION "2.00"
 
 #include <sourcemod>
 #include <sdktools>
@@ -87,6 +87,9 @@ char g_cUseMySQL[64];
 
 int g_iRespawnDelays[MAX_Item];
 
+Handle g_hModelScale;
+float g_fModelScale;
+
 Database g_DB;
 
 public Plugin myinfo = 
@@ -123,6 +126,7 @@ public void OnPluginStart()
 	g_hChatTag = AutoExecConfig_CreateConVar("event_chatTag", "GGC", "Chattag to append in front of all prints");
 	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Pumpkin", "Name of the Item for PrintToChat");
 	g_hUseMySQL = AutoExecConfig_CreateConVar("event_useMysql", "eventItems", "MySQL Config Name - leave blank for none");
+	g_hModelScale = AutoExecConfig_CreateConVar("event_modelScale", "1.0", "Scales the Model (Not working for all models!)");
 	
 	AutoExecConfig_CleanFile();
 	AutoExecConfig_ExecuteFile();
@@ -148,11 +152,15 @@ public void OnConfigsExecuted() {
 	GetConVarString(g_hItemName, g_cItemName, sizeof(g_cItemName));
 	g_inSpawnAmount = GetConVarInt(g_hnSpawnAmount);
 	g_ipSpawnDelay = GetConVarInt(g_hpSpawnDelay);
+	g_fModelScale = GetConVarFloat(g_hModelScale);
 	
 	GetConVarString(g_hUseMySQL, g_cUseMySQL, sizeof(g_cUseMySQL));
 	if(!StrEqual(g_cUseMySQL, "")){
 		char error[256];
 		g_DB = SQL_Connect(g_cUseMySQL, true, error, sizeof(error));
+		char createTableQuery[2048];
+		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
+		SQL_TQuery(g_DB, SQLErrorCheckCallback, createTableQuery);
 	}
 		
 	if (!StrEqual(g_cPickupSoundPath, ""))
@@ -161,6 +169,42 @@ public void OnConfigsExecuted() {
 	if(g_iSpawnMode == 4)
 		for (int i = 0; i < g_inSpawnAmount; i++)
 			g_iRespawnDelays[i] = 0;
+			
+	char retrieveStatsCommandString[64];
+	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss");
+	RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
+}
+
+
+public Action retrieveStatsCommand(int client, int args){
+	char playerid[20];
+	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
+	char fetchStatsQuery[256];
+	Format(fetchStatsQuery, sizeof(fetchStatsQuery), "SELECT amount FROM eventItems_stats WHERE playerid = '%s';", playerid);
+	SQL_TQuery(g_DB, fetchStatsQueryCallback, fetchStatsQuery, client);
+	return Plugin_Handled;
+}
+
+
+public void fetchStatsQueryCallback(Handle owner, Handle hndl, const char[] error, any client) {
+	int amount;
+	while (SQL_FetchRow(hndl)) {
+		amount = SQL_FetchIntByName(hndl, "amount");
+	}
+	CPrintToChat(client, "{darkred}[{green}%s{darkred}] {green}You have picked up {darkred}%i %ss{green}!", g_cChatTag, amount, g_cItemName);
+}
+
+
+public void incrementCollectedAmount(int client){
+	addToCollectedAmount(client, 1);
+}
+
+public void addToCollectedAmount(int client, int amount){
+	char playerid[20];
+	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
+	char UpdateProgressQuery[512];
+	Format(UpdateProgressQuery, sizeof(UpdateProgressQuery), "UPDATE `eventItems_stats` SET `amount` = amount + %i WHERE `eventItems_stats`.`playerid` = '%s';", playerid, amount);
+	SQL_TQuery(g_DB, SQLErrorCheckCallback, UpdateProgressQuery);
 }
 
 public void OnMapStart() {
@@ -175,13 +219,8 @@ public Action refreshTimer(Handle Timer){
 				g_iRespawnDelays[i]--;
 			else if(g_iRespawnDelays[i] == 1){
 				g_iRespawnDelays[i]--;
-				if(GetArraySize(randomNumbers) > 0){
-					int spawnId = GetArrayCell(randomNumbers, 0);
-					RemoveFromArray(randomNumbers, 0);
-					spawnItem(spawnId);
-				}
+				spawnItemOnRandomSlot();
 			}
-				
 		}
 	}
 }
@@ -211,6 +250,7 @@ public void spawnItem(int id) {
 	char cId[8];
 	IntToString(id, cId, sizeof(cId));
 	SetEntPropString(eventEnt, Prop_Data, "m_iName", cId);
+	SetEntPropFloat(eventEnt, Prop_Send, "m_flModelScale", g_fModelScale);
 	DispatchSpawn(eventEnt);
 	float pos[3];
 	pos[0] = g_eItemSpawnPoints[id][gXPos];
@@ -262,6 +302,8 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	AcceptEntityInput(EntRefToEntIndex(g_eItemSpawnPoints[ItemId][gItemRef]), "kill");
 	g_iActiveItem--;
 	Store_SetClientCredits(activator, Store_GetClientCredits(activator) + g_iPickupCredits);
+	incrementCollectedAmount(activator);
+	
 	if(g_iSpawnMode == 4){
 		for (int i = 0; i < g_inSpawnAmount; i++) {
 			if(g_iRespawnDelays[i] > 1)
@@ -289,11 +331,26 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 			g_eItemSpawnPoints[i][gIsActive] = false;
 		}
 	}else{
-		for (int n = 0; n < g_iLoadedItem; n++){
-			if(g_eItemSpawnPoints[n][gIsActive]){
+		for (int n = 0; n < g_iLoadedItem; n++)
+			if(g_eItemSpawnPoints[n][gIsActive])
 				spawnItem(n);
-			}
-		} 
+			
+		int activeTimers = 0;
+		for (int i = 0; i < g_inSpawnAmount; i++)
+			if(g_iRespawnDelays[i] > 0)
+				activeTimers++;
+		
+		int activeItems = 0;
+		for (int i = 0; i < g_iLoadedItem; i++)
+			if(g_eItemSpawnPoints[i][gIsActive])
+				activeItems++;
+			
+		if(activeTimers + activeItems < g_inSpawnAmount){
+			int toSpawn = g_inSpawnAmount - (activeTimers + activeItems);
+			for (int i = 0; i < toSpawn; i++)
+				spawnItemOnRandomSlot();
+		}
+				
 	}
 	
 	if (g_iLoadedItem == 0)
@@ -326,11 +383,18 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 		spawns = g_iLoadedItem;
 	
 	for (int i = 0; i < spawns; i++) {
-		int spawnId = GetArrayCell(randomNumbers, 0);
-		RemoveFromArray(randomNumbers, 0);
-		spawnItem(spawnId);
+		spawnItemOnRandomSlot();
 	}
 	CPrintToChatAll("{darkred}[{green}%s{darkred}] %i %s(s) {green}were spawned randomly on the map!", g_cChatTag, spawns, g_cItemName);
+}
+
+public int spawnItemOnRandomSlot(){
+	if(GetArraySize(randomNumbers) == 0)
+		return -1;
+	int spawnId = GetArrayCell(randomNumbers, 0);
+	RemoveFromArray(randomNumbers, 0);
+	spawnItem(spawnId);
+	return spawnId;
 }
 
 public void loadItemSpawnPoints()
@@ -619,3 +683,8 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data) {
 		return false;
 	return true;
 } 
+
+public void SQLErrorCheckCallback(Handle owner, Handle hndl, const char[] error, any data){
+	if(!StrEqual(error, ""))
+		LogError(error);
+}
