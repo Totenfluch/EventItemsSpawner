@@ -398,9 +398,12 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 			g_eItemSpawnPoints[i][gIsActive] = false;
 		}
 	} else {
-		if (g_bEnableAntiAbuse)
-			g_iAntiExploidSpawnAmount = GetRealClientCount();
-		else
+		if (g_bEnableAntiAbuse){
+			if(g_inSpawnAmount > GetRealClientCount())
+				g_iAntiExploidSpawnAmount = GetRealClientCount();
+			else
+				g_iAntiExploidSpawnAmount = g_inSpawnAmount;
+		}else
 			g_iAntiExploidSpawnAmount = g_inSpawnAmount;
 		
 		for (int n = 0; n < g_iLoadedItem; n++)
