@@ -129,7 +129,7 @@ public void OnPluginStart()
 	g_hMaxSpawnAmount = AutoExecConfig_CreateConVar("event_maxSpawnAmount", "25", "Max Amount for >>SpawnMode 3<<");
 	g_hSoundMode = AutoExecConfig_CreateConVar("event_soundMode", "2", "1 -> To Client on Pickup | 2 -> Ambient sound from Position | 3 -> Sound to all");
 	g_hnSpawnAmount = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
-	g_hEnableAntiAbuse = AutoExecConfig_CreateConVar("event_nSpawnAmount", "3", "n Spawn amount for >>SpawnMode 4<<");
+	g_hEnableAntiAbuse = AutoExecConfig_CreateConVar("event_antiExploid", "1", "reduces amount (n) for >>4<< to the players on the server if set on 1");
 	g_hpSpawnDelay = AutoExecConfig_CreateConVar("event_pSpawnDelay", "300", "Spawn delay for >>SpawnMode 4<< in seconds");
 	g_hChatTag = AutoExecConfig_CreateConVar("event_chatTag", "GGC", "Chattag to append in front of all prints");
 	g_hItemName = AutoExecConfig_CreateConVar("event_itemName", "Coin", "Name of the Item for PrintToChat");
