@@ -98,6 +98,7 @@ Handle g_hZAxisOffset;
 float g_fZAxisOffset;
 
 Database g_DB;
+bool g_bMySQLEnabled = false;
 
 public Plugin myinfo = 
 {
@@ -149,6 +150,8 @@ public Action cmdForceReload(int client, int args) {
 }
 
 public void OnClientPostAdminCheck(int client) {
+	if (!g_bMySQLEnabled)
+		return;
 	char playerid[20];
 	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
 	char playername[MAX_NAME_LENGTH + 8];
@@ -188,6 +191,7 @@ public void OnConfigsExecuted() {
 		char createTableQuery[2048];
 		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`),  UNIQUE KEY `playerid` (`playerid`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
 		SQL_TQuery(g_DB, SQLErrorCheckCallback, createTableQuery);
+		g_bMySQLEnabled = true;
 	}
 	
 	if (!StrEqual(g_cPickupSoundPath, ""))
@@ -197,15 +201,17 @@ public void OnConfigsExecuted() {
 		for (int i = 0; i < g_inSpawnAmount; i++)
 	g_iRespawnDelays[i] = 0;
 	
-	char retrieveStatsCommandString[64];
-	Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss", g_cItemName);
-	if (!CommandExists(retrieveStatsCommandString))
-		RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
-	
-	char topListCommand[64];
-	Format(topListCommand, sizeof(topListCommand), "sm_%stop", g_cItemName);
-	if (!CommandExists(topListCommand))
-		RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
+	if (g_bMySQLEnabled) {
+		char retrieveStatsCommandString[64];
+		Format(retrieveStatsCommandString, sizeof(retrieveStatsCommandString), "sm_%ss", g_cItemName);
+		if (!CommandExists(retrieveStatsCommandString))
+			RegConsoleCmd(retrieveStatsCommandString, retrieveStatsCommand, "Shows the amount of Event Items you have collected");
+		
+		char topListCommand[64];
+		Format(topListCommand, sizeof(topListCommand), "sm_%stop", g_cItemName);
+		if (!CommandExists(topListCommand))
+			RegConsoleCmd(topListCommand, getTopCollectors, "Lists the best collectors on the Server");
+	}
 	
 	char amountCommand[64];
 	Format(amountCommand, sizeof(amountCommand), "sm_%samount", g_cItemName);
@@ -214,11 +220,13 @@ public void OnConfigsExecuted() {
 }
 
 public Action retrieveStatsCommand(int client, int args) {
-	char playerid[20];
-	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
-	char fetchStatsQuery[256];
-	Format(fetchStatsQuery, sizeof(fetchStatsQuery), "SELECT amount FROM eventItems_stats WHERE playerid = '%s';", playerid);
-	SQL_TQuery(g_DB, fetchStatsQueryCallback, fetchStatsQuery, client);
+	if (g_bMySQLEnabled) {
+		char playerid[20];
+		GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
+		char fetchStatsQuery[256];
+		Format(fetchStatsQuery, sizeof(fetchStatsQuery), "SELECT amount FROM eventItems_stats WHERE playerid = '%s';", playerid);
+		SQL_TQuery(g_DB, fetchStatsQueryCallback, fetchStatsQuery, client);
+	}
 	return Plugin_Handled;
 }
 
@@ -246,11 +254,13 @@ public void incrementCollectedAmount(int client) {
 }
 
 public void addToCollectedAmount(int client, int amount) {
-	char playerid[20];
-	GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
-	char UpdateProgressQuery[1024];
-	Format(UpdateProgressQuery, sizeof(UpdateProgressQuery), "UPDATE `eventItems_stats` SET `amount` = amount + %i WHERE `eventItems_stats`.`playerid` = '%s';", amount, playerid);
-	SQL_TQuery(g_DB, SQLErrorCheckCallback, UpdateProgressQuery);
+	if (g_bMySQLEnabled) {
+		char playerid[20];
+		GetClientAuthId(client, AuthId_Steam2, playerid, sizeof(playerid));
+		char UpdateProgressQuery[1024];
+		Format(UpdateProgressQuery, sizeof(UpdateProgressQuery), "UPDATE `eventItems_stats` SET `amount` = amount + %i WHERE `eventItems_stats`.`playerid` = '%s';", amount, playerid);
+		SQL_TQuery(g_DB, SQLErrorCheckCallback, UpdateProgressQuery);
+	}
 }
 
 public void OnMapStart() {
@@ -400,12 +410,12 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 			g_eItemSpawnPoints[i][gIsActive] = false;
 		}
 	} else {
-		if (g_bEnableAntiAbuse){
-			if(g_inSpawnAmount > GetRealClientCount())
+		if (g_bEnableAntiAbuse) {
+			if (g_inSpawnAmount > GetRealClientCount())
 				g_iAntiExploidSpawnAmount = GetRealClientCount();
 			else
 				g_iAntiExploidSpawnAmount = g_inSpawnAmount;
-		}else
+		} else
 			g_iAntiExploidSpawnAmount = g_inSpawnAmount;
 		
 		for (int n = 0; n < g_iLoadedItem; n++)
