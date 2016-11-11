@@ -113,6 +113,7 @@ public void OnPluginStart()
 {
 	RegAdminCmd("sm_itemspawns", addSpawnPointsMenu, ADMFLAG_GENERIC, "Opens the Item spawn menu");
 	RegAdminCmd("sm_itemspawnsreload", cmdForceReload, ADMFLAG_GENERIC, "Reloads the points");
+	RegAdminCmd("sm_itemmaps", getLoadedMaps, ADMFLAG_GENERIC, "Prints all maps without spawnpoints");
 	
 	HookEvent("round_start", onRoundStart);
 	
@@ -827,4 +828,56 @@ public bool isValidClient(int client) {
 		return false;
 	
 	return true;
+}
+
+
+public Action getLoadedMaps(int client, int args)
+{
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "../../mapcycle.txt");
+	
+	Handle hFile = OpenFile(sPath, "r");
+	
+	char sBuffer[512];
+	char mBuffer[256][48];
+	
+	int count = 0;
+	if (hFile != INVALID_HANDLE) {
+		while (ReadFileLine(hFile, sBuffer, sizeof(sBuffer))) {
+			Format(mBuffer[count], sizeof(mBuffer), sBuffer);
+			count++;
+		}
+		CloseHandle(hFile);
+	}
+	
+	int fileCounter = 0;
+	char fileBuffer[512][48];
+	char Path[512];
+	BuildPath(Path_SM, Path, sizeof(Path), "configs/event_Item");
+	if (!DirExists(Path))
+		return Plugin_Handled;
+	
+	DirectoryListing dL = OpenDirectory(Path);
+	while (dL.GetNext(fileBuffer[fileCounter], sizeof(fileBuffer))) {
+		ReplaceString(fileBuffer[fileCounter++], sizeof(fileBuffer), ".txt", "", false);
+	}
+	
+	int notFoundCounter = 0;
+	char notFound[256][48];
+	for (int i = 0; i < count; i++) {
+		for (int n = 0; n < fileCounter; n++) {
+			if (StrEqual(fileBuffer[n], mBuffer[i]) && !StrEqual(fileBuffer[n], ""))
+				break;
+			if (n == (fileCounter - 1))
+				strcopy(notFound[notFoundCounter++], sizeof(notFound), mBuffer[i]);
+		}
+	}
+	
+	CPrintToChat(client, "{green}Look in your console.");
+	PrintToConsole(client, "Maps without SpawnPoints:");
+	for (int i = 0; i < (notFoundCounter - 1); i++)
+	PrintToConsole(client, "%s", notFound[i]);
+	
+	delete dL;
+	return Plugin_Handled;
 } 
