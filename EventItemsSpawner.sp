@@ -115,6 +115,8 @@ public void OnPluginStart()
 	
 	HookEvent("round_start", onRoundStart);
 	
+	LoadTranslations("eventItems.phrases");
+	
 	AutoExecConfig_SetFile("eventItems");
 	AutoExecConfig_SetCreateFile(true);
 	
@@ -225,7 +227,7 @@ public Action getItemAmount(int client, int args) {
 	for (int i = 0; i < g_iLoadedItem; i++)
 	if (g_eItemSpawnPoints[i][gIsActive])
 		activeItems++;
-	CPrintToChat(client, "{darkred}[{green}%s{darkred}] {green}There are {darkred}%i {green}active {darkred}%s(s){green}!", g_cChatTag, activeItems, g_cItemName);
+	CPrintToChat(client, "%t", "showActiveItems", g_cChatTag, activeItems, g_cItemName);
 	return Plugin_Handled;
 }
 
@@ -235,7 +237,7 @@ public void fetchStatsQueryCallback(Handle owner, Handle hndl, const char[] erro
 	while (SQL_FetchRow(hndl)) {
 		amount = SQL_FetchIntByName(hndl, "amount");
 	}
-	CPrintToChat(client, "{darkred}[{green}%s{darkred}] {green}You have picked up {darkred}%i %ss{green}!", g_cChatTag, amount, g_cItemName);
+	CPrintToChat(client, "%t", "showPickupAmount", g_cChatTag, amount, g_cItemName);
 }
 
 
@@ -374,7 +376,7 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 			EmitSoundToAllAny(g_cPickupSoundPath, activator, SNDCHAN_STATIC, _, _, 1.0, SNDPITCH_NORMAL);
 	}
 	
-	CPrintToChat(activator, "{darkred}[{green}%s{darkred}] {green}You picked up a %s with {darkred}%i Credits{green}!", g_cChatTag, g_cItemName, g_iPickupCredits);
+	CPrintToChat(activator, "%t", "onCoinPickup", g_cChatTag, g_cItemName, g_iPickupCredits);
 	triggerEffect(pos, g_cPickupEffectPath, 2.5);
 }
 
@@ -446,7 +448,7 @@ public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
 	for (int i = 0; i < spawns; i++) {
 		spawnItemOnRandomSlot();
 	}
-	CPrintToChatAll("{darkred}[{green}%s{darkred}] %i %s(s) {green}were spawned randomly on the map!", g_cChatTag, spawns, g_cItemName);
+	CPrintToChatAll("%t", "coinSpawnOnRoundStart", g_cChatTag, spawns, g_cItemName);
 }
 
 public int spawnItemOnRandomSlot() {
@@ -540,7 +542,7 @@ public void AddLootSpawn(int client, bool vision)
 	g_eItemSpawnPoints[g_iLoadedItem][gZPos] = pos[2];
 	g_iLoadedItem++;
 	
-	PrintToChat(client, "Added new loot spawn at %.2f:%.2f:%.2f, for type: event_Item", pos[0], pos[1], pos[2]);
+	PrintToChat(client, "Added new spawnpoint at |<%.2f>:<%.2f>:<%.2f>| for type: %s", pos[0], pos[1], pos[2], g_cItemName);
 	saveItemSpawnPoints();
 }
 
@@ -588,6 +590,7 @@ public int addSpawnPointsMenuHandler(Handle menu, MenuAction action, int client,
 			addSpawnPointsMenu(client, 0);
 		} else if (item == 3) {
 			deleteLatestSpawn(client);
+			addSpawnPointsMenu(client, 0);
 		} else if (item == 4) {
 			ShowSpawns();
 			addSpawnPointsMenu(client, 0);
@@ -632,7 +635,6 @@ stock void GiveEntityAura(any ent, char aura[255], float position[3])
 	DispatchSpawn(AuraEntity);
 	TeleportEntity(AuraEntity, position, NULL_VECTOR, NULL_VECTOR);
 	ActivateEntity(AuraEntity);
-	//SDKHook(Herobrine_smallSmoke, SDKHook_SetTransmit, Hook_SetTransmit);
 	SetVariantString("!activator");
 	AcceptEntityInput(AuraEntity, "SetParent", ent, AuraEntity, 0);
 	CreateTimer(0.25, Timer_Run, AuraEntity);
@@ -771,7 +773,7 @@ public void getTopCollectorsCallback(Handle owner, Handle hndl, const char[] err
 			
 			char top_text[128];
 			
-			Format(top_text, sizeof(top_text), "Top %s Collecters", g_cItemName);
+			Format(top_text, sizeof(top_text), "%T", "topMenuTitle", client, g_cItemName);
 			SetPanelTitle(CreditsTopMenu, top_text);
 			
 			DrawPanelText(CreditsTopMenu, "^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^-.-^");

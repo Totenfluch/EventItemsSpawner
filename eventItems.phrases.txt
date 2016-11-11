@@ -1,0 +1,32 @@
+"Phrases"
+{
+	"showActiveItems"
+	{
+		"#format"	"{1:s},{2:i},{3:s}"
+		"en"		"{darkred}[{green}{1}{darkred}] {green}There are {darkred}{2} {green}active {darkred}{3}(s){green}!"
+	}
+	
+	"showPickupAmount"
+    	{
+		"#format"	"{1:s},{2:i},{3:s}"
+		"en"		"{darkred}[{green}{1}{darkred}] {green}You have picked up {darkred}{2} {3}s{green}!"
+	}
+
+	"onCoinPickup"
+    	{
+		"#format"	"{1:s},{2:s},{3:i}"
+		"en"		"{darkred}[{green}{1}{darkred}] {green}You picked up a {2} and gained {darkred}{3} Credits{green}!"
+	}
+
+	"coinSpawnOnRoundStart"
+    	{
+		"#format"	"{1:s},{2:i},{3:s}"
+		"en"		"{darkred}[{green}{1}{darkred}] {2} {3}(s) {green}were spawned randomly on the map!"
+	}
+
+	"topMenuTitle"
+    	{
+		"#format"	"{1:s}"
+		"en"		"Top {1} Collecters"
+	}
+}
