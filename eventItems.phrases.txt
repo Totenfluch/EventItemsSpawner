@@ -1,32 +1,42 @@
-"Phrases"
+﻿"Phrases"
 {
 	"showActiveItems"
 	{
 		"#format"	"{1:s},{2:i},{3:s}"
+		"cz"            "{darkred}[{green}{1}{darkred}] {green}Jsou zde {darkred}{2} {green}aktivní {darkred}{3}(ů){green}!"
 		"en"		"{darkred}[{green}{1}{darkred}] {green}There are {darkred}{2} {green}active {darkred}{3}(s){green}!"
+		"de"		"{darkred}[{green}{1}{darkred}] {green}Es gibt {darkred}{2} {green}aktive {darkred}{3}(s){green}!"
 	}
 	
 	"showPickupAmount"
     	{
 		"#format"	"{1:s},{2:i},{3:s}"
+		"cz"            "{darkred}[{green}{1}{darkred}] {green}Dohromady jsi sebral {darkred}{2} {3}ů{green}!"
 		"en"		"{darkred}[{green}{1}{darkred}] {green}You have picked up {darkred}{2} {3}s{green}!"
+		"de"		"{darkred}[{green}{1}{darkred}] {green}Du hast bereits {darkred}{2} {3}s{green} gesammelt!"
 	}
 
 	"onCoinPickup"
     	{
 		"#format"	"{1:s},{2:s},{3:i}"
+		"cz"            "{darkred}[{green}{1}{darkred}] {green}Sebral jsi {2} a získal {darkred}{3} Kredit(ů){green}!"
 		"en"		"{darkred}[{green}{1}{darkred}] {green}You picked up a {2} and gained {darkred}{3} Credits{green}!"
+		"de"		"{darkred}[{green}{1}{darkred}] {green}Du hast einen {2} aufgenommen und dafür {darkred}{3} Credits erhalten{green}!"
 	}
 
 	"coinSpawnOnRoundStart"
     	{
 		"#format"	"{1:s},{2:i},{3:s}"
+		"cz"            "{darkred}[{green}{1}{darkred}] {2} {3}(s) {green}byly spawnuty náhodně po celé mapě!"
 		"en"		"{darkred}[{green}{1}{darkred}] {2} {3}(s) {green}were spawned randomly on the map!"
+		"de"		"{darkred}[{green}{1}{darkred}] {2} {3}(s) {green}wurden zufällig auf der Karte gespawned!"
 	}
 
 	"topMenuTitle"
     	{
 		"#format"	"{1:s}"
 		"en"		"Top {1} Collecters"
+		"cz"            "Top {1} Sběratelů"
+		"de"            "Top {1} Sammler"
 	}
 }
