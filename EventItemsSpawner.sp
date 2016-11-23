@@ -321,7 +321,7 @@ public void spawnItem(int id) {
 	pos[2] += g_fZAxisOffset;
 	TeleportEntity(eventEnt, pos, NULL_VECTOR, NULL_VECTOR);
 	Entity_SetGlobalName(eventEnt, "EventItem");
-	
+	pos[2] -= g_fZAxisOffset;
 	GiveEntityAura(eventEnt, g_cAuraPath, pos);
 	
 	int m_iRotator = CreateEntityByName("func_rotating");
