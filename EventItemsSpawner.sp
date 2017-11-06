@@ -100,6 +100,9 @@ float g_fZAxisOffset;
 Database g_DB;
 bool g_bMySQLEnabled = false;
 
+Handle g_hOnItemPickupBasic;
+Handle g_hOnItemPickupAdvanced;
+
 public Plugin myinfo = 
 {
 	name = "Event Items Spawner", 
@@ -143,6 +146,33 @@ public void OnPluginStart()
 	
 	AutoExecConfig_CleanFile();
 	AutoExecConfig_ExecuteFile();
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	/*
+		Param 1 : int client
+		Param 2 : float x
+		Param 3 : float y
+		Param 4 : float z
+	*/
+	g_hOnItemPickupBasic = CreateGlobalForward("itemspawner_OnItemPickupBasic", ET_Ignore, Param_Cell, Param_Float, Param_Float, Param_Float);
+	
+	/*
+		Param 1 : int client
+		Param 2 : float x
+		Param 3 : float y
+		Param 4 : float z
+		Param 5 : int received credits
+		Param 6 : char[255] Item Path
+		Param 7 : char[255] Aura
+		Param 8 : char[255] Effect Path
+		Param 9 : char[255] Sound Path
+		Param 10 : char[64] Item Name
+	*/
+	g_hOnItemPickupAdvanced = CreateGlobalForward("itemspawner_OnItemPickupAdvanced", ET_Ignore, Param_Cell, Param_Float, Param_Float, Param_Float, Param_Cell, Param_String, Param_String, Param_String, Param_String, Param_String);
+	
+	return APLRes_Success;
 }
 
 public Action cmdForceReload(int client, int args) {
@@ -389,6 +419,26 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	
 	CPrintToChat(activator, "%t", "onCoinPickup", g_cChatTag, g_cItemName, g_iPickupCredits);
 	triggerEffect(pos, g_cPickupEffectPath, 2.5);
+	
+	Call_StartForward(g_hOnItemPickupBasic);
+	Call_PushCell(activator);
+	Call_PushFloat(pos[0]);
+	Call_PushFloat(pos[1]);
+	Call_PushFloat(pos[2]);
+	Call_Finish();
+	
+	Call_StartForward(g_hOnItemPickupAdvanced);
+	Call_PushCell(activator);
+	Call_PushFloat(pos[0]);
+	Call_PushFloat(pos[1]);
+	Call_PushFloat(pos[2]);
+	Call_PushCell(g_iPickupCredits);
+	Call_PushString(g_cItemPath);
+	Call_PushString(g_cAuraPath);
+	Call_PushString(g_cPickupEffectPath);
+	Call_PushString(g_cPickupSoundPath);
+	Call_PushString(g_cItemName);
+	Call_Finish();
 }
 
 public void onRoundStart(Handle event, const char[] name, bool dontBroadcast) {
