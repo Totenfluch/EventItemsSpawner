@@ -109,7 +109,7 @@ public Plugin myinfo =
 	author = PLUGIN_AUTHOR, 
 	description = "Spawns Items that can be collected", 
 	version = PLUGIN_VERSION, 
-	url = "http://ggc-base.de"
+	url = "https://totenfluch.de", 
 };
 
 public void OnPluginStart()
@@ -422,16 +422,16 @@ public void EntOut_OnStartTouch(const char[] output, int caller, int activator, 
 	
 	Call_StartForward(g_hOnItemPickupBasic);
 	Call_PushCell(activator);
-	Call_PushFloat(pos[0]);
-	Call_PushFloat(pos[1]);
-	Call_PushFloat(pos[2]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gXPos]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gYPos]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gZPos]);
 	Call_Finish();
 	
 	Call_StartForward(g_hOnItemPickupAdvanced);
 	Call_PushCell(activator);
-	Call_PushFloat(pos[0]);
-	Call_PushFloat(pos[1]);
-	Call_PushFloat(pos[2]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gXPos]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gYPos]);
+	Call_PushFloat(g_eItemSpawnPoints[ItemId][gZPos]);
 	Call_PushCell(g_iPickupCredits);
 	Call_PushString(g_cItemPath);
 	Call_PushString(g_cAuraPath);
