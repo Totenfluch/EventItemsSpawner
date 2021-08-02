@@ -221,7 +221,7 @@ public void OnConfigsExecuted() {
 		g_DB = SQL_Connect(g_cUseMySQL, true, error, sizeof(error));
 		SQL_SetCharset(g_DB, "utf8");
 		char createTableQuery[2048];
-		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( `Id` BIGINT NULL DEFAULT NULL AUTO_INCREMENT , `playername` VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `playerid` VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , `amount` INT NOT NULL , PRIMARY KEY (`Id`),  UNIQUE KEY `playerid` (`playerid`)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
+		Format(createTableQuery, sizeof(createTableQuery), "CREATE TABLE IF NOT EXISTS eventItems_stats ( Id BIGINT NOT NULL AUTO_INCREMENT , playername VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , playerid VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL , amount INT NOT NULL , PRIMARY KEY (Id), UNIQUE KEY playerid (playerid)) ENGINE = InnoDB CHARSET=utf8 COLLATE utf8_bin;");
 		SQL_TQuery(g_DB, SQLErrorCheckCallback, createTableQuery);
 		g_bMySQLEnabled = true;
 	}
